@@ -57,4 +57,4 @@ async def summarize(
     return {"summary": summary}
 
 # Serve the static UI files from the "static" directory
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
