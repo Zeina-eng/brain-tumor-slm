@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app/ /app/app/
 COPY backend/scripts/ /app/scripts/
 # Note: The model directory must exist before building, which means train.py must be run first!
-COPY backend/models/ /app/models/
+
 COPY backend/start.sh /app/
 
 # EXPOSE port
