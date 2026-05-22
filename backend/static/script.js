@@ -1,14 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
     // API Configurations
-    // Update API_URL to use relative path for dynamic production routes
-    const API_URL = '/summarize';
+    const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const API_BASE_URL = isDeployed
+        ? '' // On Render, relative path works since we serve static files from same origin
+        : 'http://127.0.0.1:10000';
 
     // UI Elements
     const tabs = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
+    const actionBtns = document.querySelectorAll('.action-btn');
     const subBtn = document.getElementById('summarize-btn');
     const loadingOverlay = document.getElementById('loading-overlay');
     const resultContainer = document.getElementById('result-container');
+    const resultTitle = resultContainer.querySelector('h2');
     const summaryOutput = document.getElementById('summary-output');
     const copyBtn = document.getElementById('copy-btn');
     
@@ -18,7 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('drop-zone');
     const fileNameDisplay = document.getElementById('file-name');
 
-    let currentMode = 'text'; // 'text' | 'file'
+    let currentTab = 'text'; // 'text' | 'file'
+    let currentAction = 'summarize'; // 'summarize' | 'generate'
     let selectedFile = null;
 
     // Tabs Logic
@@ -28,8 +33,28 @@ document.addEventListener('DOMContentLoaded', () => {
             tabContents.forEach(c => c.classList.remove('active'));
             
             tab.classList.add('active');
-            currentMode = tab.dataset.tab;
-            document.getElementById(`${currentMode}-tab`).classList.add('active');
+            currentTab = tab.dataset.tab;
+            document.getElementById(`${currentTab}-tab`).classList.add('active');
+        });
+    });
+
+    // Action Logic
+    actionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            actionBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentAction = btn.dataset.action;
+            
+            // Update button text and labels
+            if (currentAction === 'generate') {
+                subBtn.querySelector('span').textContent = 'Generate Text';
+                rawTextNode.placeholder = 'Enter a topic or prompt to expand...';
+                resultTitle.textContent = 'Generated Text';
+            } else {
+                subBtn.querySelector('span').textContent = 'Generate Summary';
+                rawTextNode.placeholder = 'Start typing or paste text here...';
+                resultTitle.textContent = 'Generated Summary';
+            }
         });
     });
 
@@ -59,12 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleFileSelect(file) {
-        if (file.type !== "text/plain" && file.type !== "application/pdf") {
-            // Very rudimentary check. We rely on the backend for proper validation.
-            if (!file.name.endsWith('.txt') && !file.name.endsWith('.pdf')) {
-                alert("Please select a .txt or .pdf file.");
-                return;
-            }
+        if (!file.name.endsWith('.txt') && !file.name.endsWith('.pdf')) {
+            alert("Please select a .txt or .pdf file.");
+            return;
         }
         selectedFile = file;
         fileNameDisplay.textContent = `Selected: ${file.name}`;
@@ -73,9 +95,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Submit Action
     subBtn.addEventListener('click', async () => {
         // Validate
-        if (currentMode === 'text') {
+        if (currentTab === 'text') {
             if (!rawTextNode.value.trim()) {
-                alert("Please enter some text to summarize.");
+                alert(`Please enter some text to ${currentAction}.`);
                 return;
             }
         } else {
@@ -87,28 +109,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Hide old results & show loader
         resultContainer.classList.add('hidden');
+        loadingOverlay.querySelector('p').textContent = currentAction === 'summarize' ? 'Analyzing document...' : 'Generating text...';
         loadingOverlay.classList.remove('hidden');
 
         try {
             const formData = new FormData();
-            if (currentMode === 'text') {
+            if (currentTab === 'text') {
                 formData.append('text', rawTextNode.value.trim());
             } else {
                 formData.append('file', selectedFile);
             }
 
-            const response = await fetch(API_URL, {
+            const endpoint = currentAction === 'summarize' ? '/summarize' : '/generate';
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: 'POST',
-                body: formData // multipart/form-data will be set automatically by fetch
+                body: formData
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                if (data.summary) {
-                    summaryOutput.textContent = data.summary;
+                const output = data.summary || data.generated_text;
+                if (output) {
+                    summaryOutput.textContent = output;
                     resultContainer.classList.remove('hidden');
-                    // smoothly scroll to result
                     setTimeout(() => {
                         resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 100);
@@ -135,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             await navigator.clipboard.writeText(summaryOutput.textContent);
-            // Visual feedback
             const originalHTML = copyBtn.innerHTML;
             copyBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
             setTimeout(() => {
