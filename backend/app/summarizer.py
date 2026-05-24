@@ -1,8 +1,8 @@
 import requests
 import os
 
-SUMMARIZE_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
-GENERATE_API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
+SUMMARIZE_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+GENERATE_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 
 def call_hf_api(api_url, text, payload_extra=None):
     hf_api_key = os.getenv("HF_API_KEY")
@@ -30,20 +30,43 @@ def call_hf_api(api_url, text, payload_extra=None):
         data = response.json()
 
         # Handle different response formats
-        if isinstance(data, list):
+        if isinstance(data, list) and len(data) > 0:
             if "summary_text" in data[0]:
                 return data[0]["summary_text"]
             if "generated_text" in data[0]:
                 return data[0]["generated_text"]
         
+        # If Hugging Face returns a dict instead of a list (happens sometimes on some models/endpoints)
+        if isinstance(data, dict):
+            if "summary_text" in data:
+                return data["summary_text"]
+            if "generated_text" in data:
+                return data["generated_text"]
+            if "error" in data:
+                return f"Error: {data['error']}"
+
         return "Unexpected response from model"
 
     except Exception as e:
         return f"Server error: {str(e)}"
 
 def summarize_text(text):
-    return call_hf_api(SUMMARIZE_API_URL, text)
+    # Set parameters to force a more concise, smaller summary
+    return call_hf_api(SUMMARIZE_API_URL, text, payload_extra={
+        "parameters": {
+            "max_length": 130,
+            "min_length": 30,
+            "do_sample": False
+        }
+    })
 
 def generate_text(prompt):
-    # For generation, we might want to tweak parameters like max_length
-    return call_hf_api(GENERATE_API_URL, prompt, payload_extra={"parameters": {"max_length": 250, "do_sample": True}})
+    return call_hf_api(GENERATE_API_URL, prompt, payload_extra={
+        "parameters": {
+            "max_length": 250,
+            "min_length": 10,
+            "do_sample": True,
+            "temperature": 0.7
+        }
+    })
+
