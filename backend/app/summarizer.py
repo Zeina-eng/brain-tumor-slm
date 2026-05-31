@@ -1,5 +1,6 @@
 import requests
 import os
+from fastapi import HTTPException
 
 SUMMARIZE_API_URL = "https://api.huggingface.co/models/facebook/bart-large-cnn"
 GENERATE_API_URL = "https://api.huggingface.co/models/google/flan-t5-large"
@@ -8,7 +9,7 @@ GENERATE_API_URL = "https://api.huggingface.co/models/google/flan-t5-large"
 def call_hf_api(api_url, text, payload_extra=None):
     hf_api_key = os.getenv("HF_API_KEY")
     if not hf_api_key:
-        return "Server error: HF_API_KEY environment variable is missing"
+        raise HTTPException(status_code=500, detail="Server error: HF_API_KEY environment variable is missing")
 
     headers = {
         "Authorization": f"Bearer {hf_api_key}"
@@ -26,7 +27,15 @@ def call_hf_api(api_url, text, payload_extra=None):
         response = requests.post(api_url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            return f"Error: {response.json()}"
+            try:
+                error_data = response.json()
+                if isinstance(error_data, dict):
+                    error_msg = error_data.get("error", "Unknown error")
+                else:
+                    error_msg = str(error_data)
+            except Exception:
+                error_msg = response.text or "Unknown error"
+            raise HTTPException(status_code=response.status_code, detail=f"Hugging Face API Error: {error_msg}")
 
         data = response.json()
 
@@ -44,12 +53,15 @@ def call_hf_api(api_url, text, payload_extra=None):
             if "generated_text" in data:
                 return data["generated_text"]
             if "error" in data:
-                return f"Error: {data['error']}"
+                raise HTTPException(status_code=500, detail=f"Hugging Face API Error: {data['error']}")
 
-        return "Unexpected response from model"
+        raise HTTPException(status_code=502, detail="Unexpected response from model")
 
+    except HTTPException:
+        # Re-raise HTTPExceptions we explicitly raised
+        raise
     except Exception as e:
-        return f"Server error: {str(e)}"
+        raise HTTPException(status_code=502, detail=f"Hugging Face API connection error: {str(e)}")
 
 def summarize_text(text):
     # Set parameters to force a more concise, smaller summary
@@ -70,4 +82,3 @@ def generate_text(prompt):
             "temperature": 0.7
         }
     })
-

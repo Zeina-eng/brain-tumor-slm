@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.summarizer import summarize_text, generate_text
@@ -20,7 +20,7 @@ async def summarize(
 ):
     # ❌ No input
     if not text and not file:
-        return {"error": "Provide text or upload a file"}
+        raise HTTPException(status_code=400, detail="Either 'text' or 'file' must be provided.")
 
     # 🟢 If text provided
     if text:
@@ -34,9 +34,9 @@ async def summarize(
         try:
             extracted_text = content.decode("utf-8")
         except UnicodeDecodeError:
-            return {"error": "Invalid text file format. Expected utf-8 encoded text."}
+            raise HTTPException(status_code=400, detail="Invalid text file format. Expected utf-8 encoded text.")
         except Exception as e:
-            return {"error": f"Error reading text file: {str(e)}"}
+            raise HTTPException(status_code=400, detail=f"Error reading text file: {str(e)}")
     
     # PDF file
     elif file.filename.endswith(".pdf"):
@@ -44,13 +44,13 @@ async def summarize(
             from app.utils import extract_text_from_pdf_content
             extracted_text = extract_text_from_pdf_content(content)
         except Exception as e:
-            return {"error": f"Error reading PDF: {str(e)}"}
+            raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
 
     else:
-        return {"error": "Only .txt and .pdf supported"}
+        raise HTTPException(status_code=400, detail="Only .txt and .pdf supported")
 
     if not extracted_text.strip():
-        return {"error": "File is empty"}
+        raise HTTPException(status_code=400, detail="File is empty")
 
     summary = summarize_text(extracted_text)
     return {"summary": summary}
@@ -62,7 +62,7 @@ async def generate(
 ):
     # ❌ No input
     if not text and not file:
-        return {"error": "Provide a prompt or upload a file"}
+        raise HTTPException(status_code=400, detail="Either 'text' or 'file' must be provided.")
 
     # 🟢 If text provided
     if text:
@@ -73,18 +73,18 @@ async def generate(
     if file.filename.endswith(".txt"):
         try:
             extracted_text = content.decode("utf-8")
-        except:
-            return {"error": "Invalid text file format"}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid text file format")
     elif file.filename.endswith(".pdf"):
         try:
             from app.utils import extract_text_from_pdf_content
             extracted_text = extract_text_from_pdf_content(content)
-        except:
-            return {"error": "Error reading PDF"}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Error reading PDF")
     else:
-        return {"error": "Only .txt and .pdf supported"}
+        raise HTTPException(status_code=400, detail="Only .txt and .pdf supported")
 
     return {"generated_text": generate_text(extracted_text)}
 
 # Serve the static UI files from the "static" directory
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="static", html=True), name="static")

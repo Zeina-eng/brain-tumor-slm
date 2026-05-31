@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert("An unknown error occurred on the server.");
                 }
             } else {
-                alert(`Error: ${data.error || 'Server error occurred'}`);
+                alert(`Error: ${data.detail || data.error || 'Server error occurred'}`);
             }
 
         } catch (error) {
