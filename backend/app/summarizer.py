@@ -2,8 +2,8 @@ import requests
 import os
 from fastapi import HTTPException
 
-SUMMARIZE_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
-GENERATE_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+SUMMARIZE_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
+GENERATE_API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
 
 
 def call_hf_api(api_url, text, payload_extra=None):
