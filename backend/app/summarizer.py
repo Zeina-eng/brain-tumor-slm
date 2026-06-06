@@ -2,8 +2,8 @@ import requests
 import os
 from fastapi import HTTPException
 
-SUMMARIZE_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
-GENERATE_API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
+SUMMARIZE_API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+GENERATE_API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
 
 
 def call_hf_api(api_url, text, payload_extra=None):
@@ -16,15 +16,20 @@ def call_hf_api(api_url, text, payload_extra=None):
     }
 
     # Truncate text to avoid model limits
-    if len(text) > 3500:
-        text = text[:3500]
+    if len(text) > 2000:
+        text = text[:2000]
 
     payload = {"inputs": text}
     if payload_extra:
         payload.update(payload_extra)
 
     try:
-        response = requests.post(api_url, headers=headers, json=payload)
+        response = requests.post(
+            api_url,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
 
         if response.status_code != 200:
             try:
