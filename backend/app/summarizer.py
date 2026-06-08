@@ -3,7 +3,7 @@ import os
 from fastapi import HTTPException
 
 SUMMARIZE_API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
-GENERATE_API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
+GENERATE_API_URL = "https://router.huggingface.co/v1/chat/completions"
 
 
 def call_hf_api(api_url, text, payload_extra=None):
@@ -12,16 +12,25 @@ def call_hf_api(api_url, text, payload_extra=None):
         raise HTTPException(status_code=500, detail="Server error: HF_API_KEY environment variable is missing")
 
     headers = {
-        "Authorization": f"Bearer {hf_api_key}"
+        "Authorization": f"Bearer {hf_api_key}",
+        "Content-Type": "application/json"
     }
 
     # Truncate text to avoid model limits
     if len(text) > 2000:
         text = text[:2000]
 
-    payload = {"inputs": text}
-    if payload_extra:
-        payload.update(payload_extra)
+    if "v1/chat/completions" in api_url:
+        payload = {
+            "model": "Qwen/Qwen2.5-7B-Instruct",
+            "messages": [{"role": "user", "content": text}],
+            "max_tokens": 250,
+            "temperature": 0.7
+        }
+    else:
+        payload = {"inputs": text}
+        if payload_extra:
+            payload.update(payload_extra)
 
     try:
         response = requests.post(
@@ -44,7 +53,11 @@ def call_hf_api(api_url, text, payload_extra=None):
 
         data = response.json()
 
-        # Handle different response formats
+        # Handle Chat Completion response format
+        if isinstance(data, dict) and "choices" in data and len(data["choices"]) > 0:
+            return data["choices"][0]["message"]["content"]
+
+        # Handle different response formats for Serverless Inference API
         if isinstance(data, list) and len(data) > 0:
             if "summary_text" in data[0]:
                 return data[0]["summary_text"]
@@ -79,11 +92,4 @@ def summarize_text(text):
     })
 
 def generate_text(prompt):
-    return call_hf_api(GENERATE_API_URL, prompt, payload_extra={
-        "parameters": {
-            "max_length": 250,
-            "min_length": 10,
-            "do_sample": True,
-            "temperature": 0.7
-        }
-    })
+    return call_hf_api(GENERATE_API_URL, prompt)
